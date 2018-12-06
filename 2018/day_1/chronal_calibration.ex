@@ -17,12 +17,9 @@ defmodule ChronalCalibration do
   def frequency_seq_stream(cycle) do
     cycle
     |> Stream.transform({0, %{}}, fn i, acc = {current_freq, occurs} ->
-      {_, new_occurs} =
+      new_occurs =
         occurs
-        |> Map.get_and_update(current_freq, fn
-          nil -> {nil, 1}
-          current_count -> {current_count, current_count + 1}
-        end)
+        |> Map.update(current_freq, 1, &(&1 + 1))
 
       {[{current_freq, new_occurs}], {current_freq + i, new_occurs}}
     end)
