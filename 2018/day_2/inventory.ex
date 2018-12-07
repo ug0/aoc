@@ -16,8 +16,11 @@ defmodule Inventory do
     str
     |> String.graphemes()
     |> Enum.group_by(&(&1))
-    |> Enum.reduce(MapSet.new, fn {_, n}, set ->
-      MapSet.put(set, length(n))
+    |> Enum.reduce_while(MapSet.new, fn {_, n}, set ->
+      cond do
+        MapSet.member?(set, 2) && MapSet.member?(set, 3) -> {:halt, set}
+        true -> {:cont, MapSet.put(set, length(n))}
+      end
     end)
   end
 
