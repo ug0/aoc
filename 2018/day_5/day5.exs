@@ -22,7 +22,7 @@ defmodule Solution2 do
   end
 
   @doc """
-  利用 part1 方法化简字符串，将结果分别取出每个字母再对结果化简，取各字符串长度最小值
+  利用 part1 方法化简字符串，将结果分别移除每种字母(a-z)再对结果化简，取各字符串长度最小值
   """
   @a_to_z ?a..?z |> Enum.into([]) |> to_string() |> String.graphemes()
   def part2(input) do

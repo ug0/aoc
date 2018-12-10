@@ -47,6 +47,15 @@ defmodule Guard do
 end
 
 defmodule Day4 do
+  @doc """
+  扫描排序后的记录，以 guard ID 为键值记录每个 guard 信息：
+    - 是否处于睡眠状态 asleep :: boolean
+    - 各分钟睡眠次数 sleep_min_counts :: map
+    - 最频繁睡眠时刻分钟 frequent_sleep_min :: {minute, count}
+    - 总共睡眠分钟数 total_sleep_mins
+    - 上次更新时间 updated_at
+  最后筛选出最长睡眠时间的 Guard
+  """
   def part1_result(input_stream) do
     guard =
       input_stream
@@ -62,6 +71,9 @@ defmodule Day4 do
     (guard.id |> String.to_integer()) * most_sleep_minute
   end
 
+  @doc """
+  利用 part1 扫描排序后的记录, 筛选出睡眠最频繁的 Guard
+  """
   def part2_result(input_stream) do
     guard =
       input_stream
