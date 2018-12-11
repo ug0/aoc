@@ -9,25 +9,73 @@ defmodule Day6 do
   """
   def part1(lines) do
     points = lines |> Enum.map(&parse_line/1)
-    bounds = {top, right, bottom, left} = parse_bounds(points)
+    bounds = parse_bounds(points)
 
     finite_points = points |> Enum.reject(&(infinite_point?(&1, points, bounds)))
 
-    Enum.reduce(left..right, %{}, fn x, acc ->
-      Enum.reduce(top..bottom, acc, fn y, acc ->
-        case one_closest_point({x, y}, points) do
-          nil -> acc
-          point -> if point in finite_points, do: Map.update(acc, point, 1, &(&1 + 1)), else: acc
-        end
-      end)
+    bounds
+    |> points_within_bounds()
+    |> Enum.reduce(%{}, fn point, acc ->
+      case one_closest_point(point, points) do
+        nil -> acc
+        closest_point -> if closest_point in finite_points, do: Map.update(acc, closest_point, 1, &(&1 + 1)), else: acc
+      end
     end)
     |> Enum.max_by(fn {_, areas} -> areas end)
     |> elem(1)
   end
 
+  @doc """
+  1. 同 part1 一样确定边界
+  2. 先在边界内找到所有符合条件的点
+  3. 从边界外一层开始一圈一圈依次寻找符合条件的点，当出现一圈没有任何一个符合的条件的点时，停止寻找
+  """
   def part2(lines, n) do
     points = lines |> Enum.map(&parse_line/1)
-    bounds = {top, right, bottom, left} = parse_bounds(points)
+    bounds = parse_bounds(points)
+
+    bounds
+    |> points_within_bounds()
+    |> Enum.filter(point_filter(points, n))
+    |> append_points_outside_bounds(next_outer_bounds(bounds), point_filter(points, n))
+    |> Enum.count()
+  end
+
+  defp append_points_outside_bounds(result, bounds, filter) do
+    case bounds
+    |> bounds_points()
+    |> Enum.filter(filter) do
+      [] -> result
+      new_points -> append_points_outside_bounds(result ++ new_points, next_outer_bounds(bounds), filter)
+    end
+  end
+
+  defp bounds_points({top, right, bottom, left}) do
+    (for x <- left..(right - 1), do: {x, top}) ++
+    (for y <- top..(bottom - 1), do: {right, y}) ++
+    (for x <- (left + 1)..right, do: {x, bottom}) ++
+    (for y <- (top + 1)..bottom, do: {left, y})
+  end
+
+  defp point_filter(points, total_distance_limit) do
+    fn point ->
+      total_distance(point, points) < total_distance_limit
+    end
+  end
+
+  defp points_within_bounds({top, right, bottom, left}) do
+    Stream.flat_map(left..right, fn x ->
+      Stream.map(top..bottom, fn y ->
+        {x, y}
+      end)
+    end)
+  end
+
+  defp next_outer_bounds({top, right, bottom, left}), do: {top - 1, right + 1, bottom + 1, left - 1}
+
+  defp total_distance(point, points) do
+    points
+    |> Enum.reduce(0, &(&2 + manhattan_distance(&1, point)))
   end
 
   defp infinite_point?(point, points) do
@@ -111,8 +159,16 @@ case System.argv() do
         assert 4 == Day6.part1(@input |> String.split("\n", trim: true))
       end
 
+      @input """
+      1, 1
+      1, 6
+      8, 3
+      3, 4
+      5, 5
+      8, 9
+      """
       test "part 2 result" do
-        # assert 16 == Day6.part2(@input |> String.split("\n", trim: true), 32)
+        assert 16 == Day6.part2(@input |> String.split("\n", trim: true), 32)
       end
     end
 
@@ -125,8 +181,9 @@ case System.argv() do
 
   [input_file, "--part2"] ->
     input_file
-    |> File.stream!()
-    |> Day6.part2()
+    |> File.read!()
+    |> String.split("\n", trim: true)
+    |> Day6.part2(10000)
     |> IO.puts()
 
   _ ->
