@@ -13,7 +13,17 @@ defmodule Day8 do
     calc_sum(nums, [{:node, 1}], 0)
   end
 
-  def part2(_nums) do
+  @doc """
+  1. 类似 part1 准备一个栈，扫描数字序列，得到两个 map(Hash) 分别记录每个 node 的 children 和 entries。
+    细节变动：
+      - {:node, n} 增加第三个元素——这些节点的 parent，即 {:node, n, parent}
+      - {:data, n} 增加第三个元素——这些 data entires 属于的 node, 即 {:data, n, node}
+      - 初始栈为 [{:node, 1, nil}], 起始 node 编号从 1 开始，每当发现一个新 node 该数加 1
+  2. 得到两个分别记录每个 node 的 children 和 entries 后，按照规则计算出 root node 的 sum
+  """
+  def part2(nums) do
+    Nodes.build({%{}, %{}}, nums, [{:node, 1, nil}], 1)
+    |> Nodes.node_sum(1)
   end
 
   def calc_sum([], _, sum), do: sum
@@ -32,6 +42,51 @@ defmodule Day8 do
   end
 end
 
+defmodule Nodes do
+  def node_sum(nodes = {nodes_children, nodes_entries}, node) do
+    case Map.get(nodes_children, node) do
+      nil -> nodes_entries |> Map.fetch!(node) |> Enum.sum()
+      children -> nodes_entries |> Map.fetch!(node) |> Enum.reduce(0, fn entry, sum ->
+        sum + case Enum.at(children, -entry) do
+          nil -> 0
+          child -> node_sum(nodes, child)
+        end
+      end)
+    end
+  end
+
+  def build(nodes, [], _, _), do: nodes
+  def build(nodes, nums, [{:node, 0, _parent} | rest], new_node) do
+    build(nodes, nums, rest, new_node)
+  end
+
+  def build({nodes_children, nodes_entries}, [children_num, data_num | rest_nums], [{:node, n, parent} | rest_stack], new_node) do
+    build({update_nodes_child(nodes_children, parent, new_node), nodes_entries}, rest_nums, [{:node, children_num, new_node}, {:data, data_num, new_node}, {:node, n - 1, parent} | rest_stack], gen_next_new_node(new_node))
+  end
+
+  def build(nodes, nums, [{:data, 0, _node} | rest_stack], new_node) do
+    build(nodes, nums, rest_stack, new_node)
+  end
+
+  def build({nodes_children, nodes_entries}, [entry | rest_nums], [{:data, n, node} | rest_stack], new_node) do
+    build({nodes_children, update_nodes_entry(nodes_entries, node, entry)}, rest_nums, [{:data, n - 1, node} | rest_stack], new_node)
+  end
+
+  def update_nodes_child(nodes_children, parent, child) do
+    nodes_children
+    |> Map.update(parent, [child], &[child | &1])
+  end
+
+  def update_nodes_entry(nodes_entries, node, entry) do
+    nodes_entries
+    |> Map.update(node, [entry], &[entry | &1])
+  end
+
+  defp gen_next_new_node(node_num) do
+    node_num + 1
+  end
+end
+
 case System.argv() do
   ["--test"] ->
     ExUnit.start()
@@ -45,7 +100,7 @@ case System.argv() do
       end
 
       test "part2" do
-        # assert 66 == Day8.part2(@input |> String.splitter(" ") |> Enum.map(&String.to_integer/1))
+        assert 66 == Day8.part2(@input |> String.splitter(" ") |> Enum.map(&String.to_integer/1))
       end
     end
 
