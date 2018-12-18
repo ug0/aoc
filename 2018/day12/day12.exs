@@ -3,19 +3,41 @@ defmodule Day12 do
     pots = initial_state |> parse_pots() |> Pots.init()
     parsed_rules = rules |> parse_rules()
 
-    plant_sum_after(pots, parsed_rules, 20)
-  end
-
-  def part2(_input) do
-  end
-
-  def plant_sum_after(pots, rules, gens) do
-    1..gens
+    1..20
     |> Enum.each(fn _ ->
-      Pots.next_gen!(pots, rules)
+      Pots.next_gen!(pots, parsed_rules)
     end)
 
     Pots.plant_sum(pots)
+  end
+
+  @doc """
+  经过一定次数的迭代，状态分布会出现循环并且整体位置逐渐向右偏移。
+  """
+  def part2([initial_state | rules]) do
+    pots = initial_state |> parse_pots() |> Pots.init()
+    parsed_rules = rules |> parse_rules()
+
+    total_gens = 50000000000
+    1..total_gens
+    |> Enum.reduce_while(%{Pots.trimmed_string(pots) => {0, Pots.plant_sum(pots)}}, fn gen, acc ->
+      Pots.next_gen!(pots, parsed_rules)
+      trimmed_pots_string = Pots.trimmed_string(pots)
+      plant_sum = Pots.plant_sum(pots)
+
+      case Map.get(acc, trimmed_pots_string) do
+        nil -> {:cont, Map.put(acc, trimmed_pots_string, {gen, plant_sum})}
+        {last_repeated_gen, last_repeated_sum} ->
+          cycle_size = gen - last_repeated_gen
+          gen_offset = rem(total_gens - last_repeated_gen, cycle_size)
+          next_repeated_gen = last_repeated_gen + gen_offset
+          cycles = div(total_gens - last_repeated_gen, cycle_size)
+          offset_per_cycle = div(plant_sum - last_repeated_sum, pots |> Pots.trimmed_string() |> String.replace(" ", "") |> String.length())
+
+          {str, {_, sum}} = Enum.find(acc, fn {_, {gen, _sum}} -> gen == next_repeated_gen end)
+          {:halt, sum + cycles * offset_per_cycle * (str |> String.replace(" ", "") |> String.length())}
+      end
+    end)
   end
 
   def parse_pots("initial state: " <> pots) do
@@ -74,6 +96,15 @@ defmodule Pots do
   @ms_pot_has_plant [{{:"$1", @has_plant}, [], [:"$1"]}]
   def plant_sum(pots) do
     :ets.select(pots, @ms_pot_has_plant) |> Enum.sum()
+  end
+
+  def trimmed_string(pots) do
+    pots
+    |> Pots.to_list()
+    |> Stream.map(fn {_, state} -> state end)
+    |> Enum.join("")
+    |> String.replace(@has_no_plant, " ")
+    |> String.trim()
   end
 
   defp update_next_gen(
@@ -151,8 +182,9 @@ case System.argv() do
   [input_file, "--part2"] ->
     input_file
     |> File.read!()
+    |> String.split("\n", trim: true)
     |> Day12.part2()
-    |> IO.puts()
+    |> IO.inspect()
 
   _ ->
     IO.puts(:stderr, "usage: [input_file] --flag")
