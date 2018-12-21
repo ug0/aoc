@@ -40,6 +40,17 @@ defmodule Day8 do
   def calc_sum([entry | rest_nums], [{:data, n} | rest_stack], sum) do
     calc_sum(rest_nums, [{:data, n - 1} | rest_stack], sum + entry)
   end
+
+  def build_tree([children_num, entries_num | tree]) do
+    {children, rest} = build_children(tree)
+  end
+
+  def build_children([children_num, entries_num | rest]) do
+    if children_num == 0 do
+      [{[], }]
+    else
+    end
+  end
 end
 
 defmodule Nodes do
