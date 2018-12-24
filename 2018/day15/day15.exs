@@ -16,9 +16,15 @@ defmodule Day15 do
     alias Battleground, as: Ground
     alias Day15.Unit
 
-    defstruct [:map, :round]
+    defstruct [:map, :round, :damage]
 
-    def from_raw_input(input) do
+    def from_raw_input(
+          input,
+          damage \\ fn
+            %Unit{kind: ?E} -> 3
+            %Unit{kind: ?G} -> 3
+          end
+        ) do
       map =
         input
         |> String.split("\n", trim: true)
@@ -39,27 +45,35 @@ defmodule Day15 do
           end)
         end)
 
-      %Ground{map: map, round: 0}
+      %Ground{map: map, round: 0, damage: damage}
     end
 
-    def play_round_while(ground, fun) do
-      play_round_while(ground, [], fun)
+    def fight_to_death(ground) do
+      fight_to_death(ground, sorted_unit_coords(ground))
     end
 
-    def play_round_while(ground = %Ground{round: round}, [], fun) do
-      case fun.(ground) do
-        :cont ->
-          play_round_while(%Ground{ground | round: round + 1}, sorted_unit_coords(ground), fun)
+    def fight_to_death(ground = %Ground{round: round}, []) do
+      fight_to_death(%Ground{ground | round: round + 1}, sorted_unit_coords(ground))
+    end
 
-        {:halt, result} ->
-          result
+    def fight_to_death(%Ground{} = ground, [next_turn | rest]) do
+      ground = ground |> play_turn(next_turn)
+
+      case Enum.reduce(ground.map, {0, 0}, fn
+             {_, %Unit{kind: ?G}}, {e_count, g_count} -> {e_count, g_count + 1}
+             {_, %Unit{kind: ?E}}, {e_count, g_count} -> {e_count + 1, g_count}
+             _, acc -> acc
+           end) do
+        {e_count, g_count} when e_count == 0 or g_count == 0 ->
+          full_round = case rest do
+            [] -> ground.round + 1
+            _ -> ground.round
+          end
+          {ground, full_round, e_count, g_count}
+
+        _ ->
+          fight_to_death(ground, rest)
       end
-    end
-
-    def play_round_while(%Ground{} = ground, [next_turn | rest], fun) do
-      ground
-      |> play_turn(next_turn)
-      |> play_round_while(rest, fun)
     end
 
     def sorted_unit_coords(%Ground{map: map}) do
@@ -85,9 +99,9 @@ defmodule Day15 do
       end
     end
 
-    def attack(ground = %Ground{map: map}, target) do
+    def attack(ground = %Ground{map: map, damage: damage}, target) do
       new_map =
-        case Unit.damaged(map[target], 3) do
+        case Unit.damaged(map[target], damage.(map[target])) do
           :dead -> %{map | target => ?.}
           unit -> %{map | target => unit}
         end
@@ -103,6 +117,7 @@ defmodule Day15 do
 
     def move(ground = %Ground{map: map}, from, to) do
       new_ground = %Ground{ground | map: %{map | from => ?., to => map[from]}}
+
       case possible_actions(new_ground, to) do
         {[], _} -> new_ground
         {enemies, _} -> attack_weakest_enemy(new_ground, enemies)
@@ -237,28 +252,34 @@ defmodule Day15 do
   alias Day15.Unit
 
   def part1(input) do
-    input
-    |> Ground.from_raw_input()
-    |> Ground.play_round_while(fn ground = %Ground{map: map, round: round} ->
-      # Uncomment below to watch the process on screen
-      # IO.inspect(round)
-      # Ground.display(ground)
+    {ground, full_round, _e_count, _g_count} =
+      input
+      |> Ground.from_raw_input()
+      |> Ground.fight_to_death()
 
-      case Enum.reduce(map, {0, 0}, fn
-             {_, %Unit{kind: ?G}}, {e_count, g_count} -> {e_count, g_count + 1}
-             {_, %Unit{kind: ?E}}, {e_count, g_count} -> {e_count + 1, g_count}
-             _, acc -> acc
-           end) do
-        {e_count, g_count} when e_count == 0 or g_count == 0 ->
-          {:halt, round * Ground.total_hp(ground)}
-
-        _ ->
-          :cont
-      end
-    end)
+    full_round * Ground.total_hp(ground)
   end
 
-  def part2(_input) do
+  def part2(input, power_of_elf) do
+    ground =
+      Ground.from_raw_input(input, fn
+        %Unit{kind: ?G} -> power_of_elf
+        %Unit{kind: ?E} -> 3
+      end)
+
+    elves_count =
+      Enum.count(ground.map, fn
+        {_, %Unit{kind: ?E}} -> true
+        _ -> false
+      end)
+
+    {ground, full_round, e_count, g_count} = Ground.fight_to_death(ground)
+
+    case {e_count, g_count} do
+      {^elves_count, 0} -> {:win, full_round * Ground.total_hp(ground)}
+      {0, _} -> :lost
+      {_, 0} -> :not_win
+    end
   end
 end
 
@@ -278,8 +299,88 @@ case System.argv() do
       #.....#
       #######
       """
-      test "part1 result" do
+      test "part1 result 1" do
         assert 27730 == Day15.part1(@input)
+      end
+
+      @input """
+      #######
+      #G..#E#
+      #E#E.E#
+      #G.##.#
+      #...#E#
+      #...E.#
+      #######
+      """
+      test "part1 result 2" do
+        assert 36334 == Day15.part1(@input)
+      end
+
+      @input """
+      #######
+      #E..EG#
+      #.#G.E#
+      #E.##E#
+      #G..#.#
+      #..E#.#
+      #######
+      """
+      test "part1 result 3" do
+        assert 39514 == Day15.part1(@input)
+      end
+
+      @input """
+      #######
+      #E.G#.#
+      #.#G..#
+      #G.#.G#
+      #G..#.#
+      #...E.#
+      #######
+      """
+      test "part1 result 4" do
+        assert 27755 == Day15.part1(@input)
+      end
+
+      @input """
+      #######
+      #.E...#
+      #.#..G#
+      #.###.#
+      #E#G#G#
+      #...#G#
+      #######
+      """
+      test "part1 result 5" do
+        assert 28944 == Day15.part1(@input)
+      end
+
+      @input """
+      #########
+      #G......#
+      #.E.#...#
+      #..##..G#
+      #...##..#
+      #...#...#
+      #.G...G.#
+      #.....G.#
+      #########
+      """
+      test "part1 result 6" do
+        assert 18740 == Day15.part1(@input)
+      end
+
+      @input """
+      #######
+      #.G...#
+      #...EG#
+      #.#.#G#
+      #..G#E#
+      #.....#
+      #######
+      """
+      test "part2 result" do
+        assert {:win, 4988} == Day15.part2(@input, 15)
       end
     end
 
@@ -289,12 +390,12 @@ case System.argv() do
     |> Day15.part1()
     |> IO.inspect()
 
-  [input, "--part2"] ->
+  [input, power_of_elf, "--part2"] ->
     input
     |> File.read!()
-    |> Day15.part2()
+    |> Day15.part2(power_of_elf |> String.to_integer())
     |> IO.inspect()
 
   _ ->
-    IO.puts(:stderr, "usage: [input_file]")
+    IO.puts(:stderr, "wrong usage")
 end
