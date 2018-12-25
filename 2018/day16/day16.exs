@@ -48,29 +48,29 @@ defmodule Day16 do
       end)
     end
 
-    def operate("add"), do: fn {a, b} -> a + b end
-    def operate("mul"), do: fn {a, b} -> a * b end
-    def operate("ban"), do: fn {a, b} -> a &&& b end
-    def operate("bo"), do: fn {a, b} -> a ||| b end
-    def operate("set"), do: fn {a, _} -> a end
-    def operate("gt") do
+    defp operate("add"), do: fn {a, b} -> a + b end
+    defp operate("mul"), do: fn {a, b} -> a * b end
+    defp operate("ban"), do: fn {a, b} -> a &&& b end
+    defp operate("bo"), do: fn {a, b} -> a ||| b end
+    defp operate("set"), do: fn {a, _} -> a end
+    defp operate("gt") do
       fn
         {a, b} when a > b -> 1
         _ -> 0
       end
     end
-    def operate("eq") do
+    defp operate("eq") do
       fn
         {a, b} when a == b -> 1
         _ -> 0
       end
     end
 
-    def interpret("set", "r", {a, b}, registers), do: {Enum.at(registers, a), b}
-    def interpret("set", "i", {a, b}, _registers), do: {a, b}
+    defp interpret("set", "r", {a, b}, registers), do: {Enum.at(registers, a), b}
+    defp interpret("set", "i", {a, b}, _registers), do: {a, b}
 
-    def interpret(_, {i_a, i_b}, {a, b}, registers), do: {_interpret(i_a, a, registers), _interpret(i_b, b, registers)}
-    def interpret(_, i, {a, b}, registers), do: {Enum.at(registers, a), _interpret(i, b, registers)}
+    defp interpret(_, {i_a, i_b}, {a, b}, registers), do: {_interpret(i_a, a, registers), _interpret(i_b, b, registers)}
+    defp interpret(_, i, {a, b}, registers), do: {Enum.at(registers, a), _interpret(i, b, registers)}
     defp _interpret("i", n, _registers), do: n
     defp _interpret("r", n, registers), do: Enum.at(registers, n)
   end
@@ -80,9 +80,9 @@ defmodule Day16 do
   def part1(input) do
     input
     |> parse_input1()
-    |> Enum.reduce(0, fn {regs_before, [_, input1, input2, output], regs_after}, acc ->
+    |> Enum.reduce(0, fn sample, acc ->
       case Enum.count(Instruction.all_opcodes, fn opcode ->
-        Instruction.execute(opcode, {input1, input2}, output, regs_before) == regs_after
+        sample_match_opcode?(sample, opcode)
       end) do
         cnt when cnt > 2 -> acc + 1
         _ -> acc
@@ -90,10 +90,46 @@ defmodule Day16 do
     end)
   end
 
-  def part2() do
+  def part2(sample, program) do
+    opcode_mapping = sample |> File.read!() |> find_opcode_mapping()
+
+    program
+    |> File.read!
+    |> String.splitter("\n", trim: true)
+    |> Enum.reduce([0, 0, 0, 0], fn line, registers ->
+      [opcode, input1, input2, output] = line |> String.splitter(" ", trim: true) |> Enum.map(&String.to_integer/1)
+      Instruction.execute(opcode_mapping[opcode], {input1, input2}, output, registers)
+    end)
   end
 
-  def parse_input1(input) do
+  defp find_opcode_mapping(input) do
+    possible_mappings =
+      input
+      |> parse_input1()
+      |> Enum.group_by(fn {_, [n | _], _} -> n end)
+      |> Enum.map(fn {opcode_num, samples} ->
+        {opcode_num, Instruction.all_opcodes
+        |> Enum.filter(fn opcode ->
+          Enum.all?(samples, &sample_match_opcode?(&1, opcode))
+        end)}
+      end)
+
+    {mapping, []} = remove_conflicts(%{}, possible_mappings)
+    mapping
+  end
+
+  defp remove_conflicts(result, possible_mapping) do
+    case Enum.find(possible_mapping, fn {_, codes} -> length(codes) == 1 end) do
+      {num, [code]} ->
+        remove_conflicts(
+          result |> Map.put(num, code),
+          possible_mapping |> Stream.reject(fn {n, _} -> n == num end) |> Enum.map(fn {n, codes} -> {n, List.delete(codes, code)} end)
+        )
+      nil -> {result, possible_mapping}
+    end
+  end
+
+  defp parse_input1(input) do
     input
     |> String.split("\n\n")
     |> Enum.map(fn seg ->
@@ -101,6 +137,10 @@ defmodule Day16 do
 
       {parse_registers(regs_before), parse_instruction(instruction), parse_registers(regs_after)}
     end)
+  end
+
+  defp sample_match_opcode?({regs_before, [_, input1, input2, output], regs_after}, opcode) do
+    Instruction.execute(opcode, {input1, input2}, output, regs_before) == regs_after
   end
 
   defp parse_instruction(line) do
@@ -134,16 +174,14 @@ case System.argv() do
       end
     end
 
-  [input_file, "--part1"] ->
-    input_file
+  [sample, "--part1"] ->
+    sample
     |> File.read!()
     |> Day16.part1()
     |> IO.inspect()
 
-  [input_file, "--part2"] ->
-    input_file
-    |> File.read!()
-    |> Day16.part2()
+  [sample, program, "--part2"] ->
+    Day16.part2(sample, program)
     |> IO.inspect()
 
   _ ->
