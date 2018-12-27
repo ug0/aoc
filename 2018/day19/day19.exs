@@ -2,6 +2,8 @@ defmodule Instruction do
   use Bitwise
 
   def execute(instructions, registers, {ip_r, ip_v}) do
+    ## inspect part 2 process
+    # IO.inspect({registers, ip_v})
     case Enum.at(instructions, ip_v) do
       nil -> registers
       _next_instruction = {op, inputs, output} ->
@@ -68,7 +70,15 @@ defmodule Day19 do
     |> Map.fetch!(0)
   end
 
-  def part2(_input) do
+  def part2(input) do
+    registers = 0..5 |> Stream.map(&{&1, 0}) |> Enum.into(%{}) |> Map.put(0, 1)
+
+    [ip_line | instruction_lines] = String.split(input, "\n", trim: true)
+
+    instruction_lines
+    |> Enum.map(&parse_instruction/1)
+    |> Instruction.execute(registers, {parse_ip(ip_line), 0})
+    |> Map.fetch!(0)
   end
 
   defp parse_ip("#ip " <> ip), do: String.to_integer(ip)

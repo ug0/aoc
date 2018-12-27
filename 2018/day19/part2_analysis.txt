@@ -1,0 +1,16 @@
+
+seti 1 4 5 # start
+mulr 4 5 1
+eqrr 1 2 1 # cond1
+addr 1 3 3
+addi 3 1 3 # if cond1 false
+addr 4 0 0 # if cond1 true
+addi 5 1 5
+gtrr 5 2 1 # cond2
+addr 3 1 3
+seti 2 1 3 # if cond1 false, jump to #3
+addi 4 1 4 # if cond1 true
+gtrr 4 2 1 # cond3
+addr 1 3 3 # if cond3 true, jump to #16
+seti 1 3 3 # jump to #2
+mulr 3 3 3 # break
