@@ -26,29 +26,29 @@ defmodule Ground do
     :ets.select_count(ground, [{{{:"$1", :"$2"}, :water}, [], [{:>, :"$2", min_y}]}])
   end
 
-  def falling(ground, _spring_coord = {x, y}) do
+  def falling(_ground, []), do: :done
+  def falling(ground, [_first_spring = {x, y} | rest_springs]) do
     case get_coord_info(ground, {x, y + 1}) do
-      :fall -> nil
-      info when info in [:clay, :water] -> spread(ground, {x, y})
-      :sand -> falling_down(ground, {x, y + 1})
+      :fall -> falling(ground, rest_springs)
+      info when info in [:clay, :water] -> spread(ground, {x, y}, rest_springs)
+      :sand -> falling_down(ground, [{x, y + 1} | rest_springs])
     end
   end
 
-  defp spread(ground, {x, y}) do
+  defp spread(ground, {x, y}, rest_springs) do
     case {spread_left(ground, {x, y}), spread_right(ground, {x, y})} do
       {{:end_clay, {left, _}}, {:end_clay, {right, _}}} ->
         fill(ground, left..right, y, :water)
-        spread(ground, {x, y - 1})
+        spread(ground, {x, y - 1}, rest_springs)
       {{:end_fall, {left, _}}, {:end_fall, {right, _}}} ->
         fill(ground, left..right, y, :fall)
-        falling(ground, {left, y})
-        falling(ground, {right, y})
+        falling(ground, [{left, y}, {right, y} | rest_springs])
       {{:end_fall, {left, _}}, {_, {right, _}}} ->
         fill(ground, left..right, y, :fall)
-        falling(ground, {left, y})
+        falling(ground, [{left, y} | rest_springs])
       {{_, {left, _}}, {:end_fall, {right, _}}} ->
         fill(ground, left..right, y, :fall)
-        falling(ground, {right, y})
+        falling(ground, [{right, y} | rest_springs])
     end
   end
   defp spread_left(ground, coord), do: spread_side(ground, coord, &(&1 - 1))
@@ -62,12 +62,12 @@ defmodule Ground do
     end
   end
 
-  defp falling_down(ground, coord) do
+  defp falling_down(ground, springs = [coord | rest_springs]) do
     if reach_the_bottom?(ground, coord) do
-      :end
+      falling(ground, rest_springs)
     else
       fill(ground, coord, :fall)
-      falling(ground, coord)
+      falling(ground, springs)
     end
   end
 
@@ -148,7 +148,7 @@ defmodule Day17 do
       |> String.split("\n", trim: true)
       |> Ground.build()
 
-    Ground.falling(ground, {500, 0})
+    Ground.falling(ground, [{500, 0}])
 
     # Ground.display(ground, {500, 0})
     Ground.watered_areas(ground)
@@ -160,7 +160,7 @@ defmodule Day17 do
       |> String.split("\n", trim: true)
       |> Ground.build()
 
-    Ground.falling(ground, {500, 0})
+    Ground.falling(ground, [{500, 0}])
     Ground.final_watered_areas(ground)
   end
 end
