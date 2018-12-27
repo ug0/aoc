@@ -24,6 +24,16 @@ defmodule AreaState do
     length(wooded_acres) * length(lumberyards)
   end
 
+  def hash(state) do
+    str =
+      state
+      |> Enum.sort_by(fn {coord, _} -> coord end)
+      |> Stream.map(fn {_, symbol} -> symbol end)
+      |> Enum.join("")
+
+    :crypto.hash(:sha256, str) |> Base.encode16()
+  end
+
   def iterate(state, 0), do: state
 
   def iterate(state, n) do
@@ -34,11 +44,11 @@ defmodule AreaState do
     |> iterate(n - 1)
   end
 
-  def transform(state, coord = {_, _}) do
+  defp transform(state, coord = {_, _}) do
     transform(state[coord], adjacent_symbols(state, coord))
   end
 
-  def transform(@open_acre, adjacents) when is_list(adjacents) do
+  defp transform(@open_acre, adjacents) when is_list(adjacents) do
     if Enum.count(adjacents, &(&1 == @trees)) > 2 do
       @trees
     else
@@ -46,7 +56,7 @@ defmodule AreaState do
     end
   end
 
-  def transform(@trees, adjacents) when is_list(adjacents) do
+  defp transform(@trees, adjacents) when is_list(adjacents) do
     if Enum.count(adjacents, &(&1 == @lumberyard)) > 2 do
       @lumberyard
     else
@@ -54,7 +64,7 @@ defmodule AreaState do
     end
   end
 
-  def transform(@lumberyard, adjacents) when is_list(adjacents) do
+  defp transform(@lumberyard, adjacents) when is_list(adjacents) do
     if Enum.any?(adjacents, &(&1 == @lumberyard)) and Enum.any?(adjacents, &(&1 == @trees)) do
       @lumberyard
     else
@@ -62,7 +72,7 @@ defmodule AreaState do
     end
   end
 
-  def adjacent_symbols(state, coord) do
+  defp adjacent_symbols(state, coord) do
     coord
     |> adjacent_coords()
     |> Stream.map(&state[&1])
@@ -103,7 +113,30 @@ defmodule Day18 do
     |> AreaState.resource_value()
   end
 
-  def part2(_input) do
+  def part2(input) do
+    state = input |> AreaState.build()
+
+    total = 1_000_000_000
+
+    1..total
+    |> Enum.reduce_while({state, %{}}, fn i, {new_state, result} ->
+      new_state = AreaState.iterate(new_state, 1)
+      hash = AreaState.hash(new_state)
+      resource_value = AreaState.resource_value(new_state)
+
+      case result[hash] do
+        nil ->
+          {:cont, {new_state, Map.put(result, hash, {i, resource_value})}}
+
+        {cycle_start, _} ->
+          repeated_iterate = rem(total - cycle_start, i - cycle_start) + cycle_start
+
+          {_, {_, final_value}} =
+            Enum.find(result, fn {_, {iterate, _}} -> iterate == repeated_iterate end)
+
+          {:halt, final_value}
+      end
+    end)
   end
 end
 
