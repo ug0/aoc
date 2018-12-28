@@ -71,7 +71,9 @@ defmodule Day20 do
     Enum.max(for {_, {:room, doors}} <- map, do: doors)
   end
 
-  def part2(_input) do
+  def part2(routes) do
+    map = RouteMap.traverse_routes(routes)
+    Enum.count(for {_, {:room, doors}} when doors >= 1000 <- map, do: doors)
   end
 end
 
