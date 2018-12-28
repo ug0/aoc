@@ -1,6 +1,6 @@
 defmodule RouteMap do
   def traverse_routes(routes) do
-    traverse_routes(routes, _init_map = %{{0, 0} => {:room, 0}}, _current_location = {{0, 0}, 0}, _saved_locations = [])
+    traverse_routes(routes, _init_map = %{{0, 0} => 0}, _current_location = {_pos = {0, 0}, _doors = 0}, _saved_locations = [])
   end
 
   def traverse_routes("^" <> rest, map, current_location, saved_locations),
@@ -24,36 +24,16 @@ defmodule RouteMap do
   end
 
   def traverse_routes(<<next_route::size(8), rest::binary>>, map, {pos, doors}, saved_locations) do
-    {new_map, next_pos} = update_route_map(map, next_route, pos, doors)
-    traverse_routes(rest, new_map, {next_pos, doors + 1}, saved_locations)
+    room_pos = room_pos_after_route(next_route, pos)
+    new_map = update_room(map, room_pos, doors + 1)
+    traverse_routes(rest, new_map, {room_pos, doors + 1}, saved_locations)
   end
 
-  defp update_route_map(map, route, start_pos, through_doors) do
-    door_pos = door_pos_after_route(route, start_pos)
-    room_pos = room_pos_after_route(route, start_pos)
-
-    new_map =
-      map
-      |> Map.put_new_lazy(
-        door_pos,
-        door_symbol_generator(route)
-      )
-      |> Map.update(
-        room_pos,
-        {:room, through_doors + 1},
-        fn {:room, doors} -> {:room, min(doors, through_doors + 1)} end
-      )
-
-    {new_map, room_pos}
+  defp update_room(map, room_pos, doors) do
+    Map.update(map, room_pos, doors, fn old_doors -> min(doors, old_doors) end)
   end
 
-  defp door_pos_after_route(route, pos_before_door), do: pos_after_route(route, pos_before_door)
-
-  defp room_pos_after_route(route, pos_before_door),
-    do: pos_after_route(route, pos_before_door, 2)
-
-  defp door_symbol_generator(route) when route in 'WE', do: fn -> {:door, ?|} end
-  defp door_symbol_generator(route) when route in 'NS', do: fn -> {:door, ?-} end
+  defp room_pos_after_route(route, pos_before_door), do: pos_after_route(route, pos_before_door, 2)
 
   defp pos_after_route(route, {x, y}, steps \\ 1) do
     case route do
@@ -68,12 +48,12 @@ end
 defmodule Day20 do
   def part1(routes) do
     map = RouteMap.traverse_routes(routes)
-    Enum.max(for {_, {:room, doors}} <- map, do: doors)
+    Enum.max(for {_, doors} <- map, do: doors)
   end
 
   def part2(routes) do
     map = RouteMap.traverse_routes(routes)
-    Enum.count(for {_, {:room, doors}} when doors >= 1000 <- map, do: doors)
+    Enum.count(for {_, doors} when doors >= 1000 <- map, do: doors)
   end
 end
 
