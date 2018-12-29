@@ -15,6 +15,36 @@ defmodule Instruction do
     end
   end
 
+  # solve part2
+  def execute2(instructions, registers, {ip_r, 28}, {break_values, last_value}) do
+    new_value = registers[4]
+
+    if MapSet.member?(break_values, new_value) do
+      last_value
+    else
+      {op, inputs, output} = Enum.at(instructions, 28)
+      registers = execute_instruction(op, inputs, output, Map.put(registers, ip_r, 28))
+      execute2(instructions, registers, {ip_r, registers[ip_r] + 1}, {MapSet.put(break_values, new_value), new_value})
+    end
+  end
+
+  # speed up the loop
+  def execute2(instructions, registers, {ip_r, 18}, {break_values, last_value}) do
+    r2 = r3 = div(registers[3], 256)
+    r1 = 1
+    registers = %{registers | 1 => r1, 2 => r2, 3 => r3}
+    execute2(instructions, registers, {ip_r, 8}, {break_values, last_value})
+  end
+
+  def execute2(instructions, registers, {ip_r, ip_v}, {break_values, last_value}) do
+    case Enum.at(instructions, ip_v) do
+      nil -> registers
+      _next_instruction = {op, inputs, output} ->
+        registers = execute_instruction(op, inputs, output, Map.put(registers, ip_r, ip_v))
+        execute2(instructions, registers, {ip_r, registers[ip_r] + 1}, {break_values, last_value})
+    end
+  end
+
   @three_letter_ops [
     "add",
     "mul",
@@ -73,6 +103,12 @@ defmodule Day21 do
   end
 
   def part2(input) do
+    registers = 0..5 |> Stream.map(&{&1, 0}) |> Enum.into(%{})
+    [ip_line | instruction_lines] = String.split(input, "\n", trim: true)
+
+    instruction_lines
+    |> Enum.map(&parse_instruction/1)
+    |> Instruction.execute2(registers, {parse_ip(ip_line), 0}, {MapSet.new, nil})
   end
 
   defp parse_ip("#ip " <> ip), do: String.to_integer(ip)
