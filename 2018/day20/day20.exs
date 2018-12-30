@@ -46,6 +46,8 @@ defmodule RouteMap do
 end
 
 defmodule Day20 do
+  # the stacked-solution might not be the correct one for all general cases,
+  # see the discussion here: https://www.reddit.com/r/adventofcode/comments/a7w4dj/2018_day_20_why_does_this_work/
   def part1(routes) do
     map = RouteMap.traverse_routes(routes)
     Enum.max(for {_, doors} <- map, do: doors)
