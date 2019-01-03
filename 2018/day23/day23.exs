@@ -7,6 +7,10 @@ defmodule Day23 do
   end
 
   def part2(input) do
+    # possible solutions
+    # https://en.wikipedia.org/wiki/Boolean_satisfiability_problem
+    # https://en.wikipedia.org/wiki/Divide-and-conquer_algorithm
+    # https://en.wikipedia.org/wiki/Octree
   end
 
   defp bot_in_range?({coord1, radius}, {coord2, _}) do
