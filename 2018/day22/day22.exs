@@ -23,7 +23,8 @@ defmodule Cave do
   def geo_index(_cave, {x, 0}), do: x * 16807
   def geo_index(_cave, {0, y}), do: y * 48271
 
-  def geo_index(cave, {x, y}), do: erosion_level(cave, {x - 1, y}) * erosion_level(cave, {x, y - 1})
+  def geo_index(cave, {x, y}),
+    do: erosion_level(cave, {x - 1, y}) * erosion_level(cave, {x, y - 1})
 
   def erosion_level(cave = %Cave{cache: cache}, coord) do
     case :ets.lookup(cache, {:erosion_level, coord}) do
@@ -53,60 +54,74 @@ defmodule Cave do
   end
 
   # part2
-  def fewest_minutes(cave = %Cave{target: target}) do
-    shortest = dijkstra_search(cave, {{0, 0}, :torch})
+  def fewest_minutes(cave = %Cave{}) do
+    start = {{0, 0}, :torch}
+    graph = build_graph(cave)
 
-    min(shortest[{target, :torch}], shortest[{target, :climbing_gear}] + 7)
+    find_fewest_cost_to_target(cave, graph, %{start => 0}, start, MapSet.new())
   end
 
-  def dijkstra_search(cave = %Cave{}, start) do
-    connected_path_nodes = find_connected_path_nodes(cave, start)
+  defp find_fewest_cost_to_target(cave = %Cave{target: target}, graph, costs, current, checked) do
+    cond do
+      current == nil or
+          (MapSet.member?(checked, {target, :torch}) and
+             MapSet.member?(checked, {target, :climbing_gear})) ->
+        {candidate1, candidate2} = {{target, :torch}, {target, :climbing_gear}}
+        %{^candidate1 => cost1, ^candidate2 => cost2} = costs
+        min(cost1, cost2 + switch_tool_cost(:climbing_gear, :torch))
 
-    dijkstra_search(cave, %{start => 0}, %{}, connected_path_nodes)
-  end
-
-  defp dijkstra_search(cave = %Cave{}, dist, shortest, connected_path_nodes) do
-    case dist
-         |> Stream.reject(fn {path_node, cost} -> shortest[path_node] end)
-         |> Enum.min_by(fn {_path_node, cost} -> cost end, fn -> :none end) do
-      :none -> shortest
-      {current_path_node, current_cost} ->
-        new_shortest = Map.put(shortest, current_path_node, current_cost)
-        new_dist =
-          connected_path_nodes[current_path_node]
-          |> Stream.reject(fn {path_node, _} -> shortest[path_node] end)
-          |> Enum.reduce(dist, fn {path_node, cost}, new_dist ->
-            new_cost = current_cost + cost
-            case new_dist[path_node] do
-              cost when not is_nil(cost) and cost <= new_cost ->  new_dist
-              _ -> Map.put(new_dist, path_node, new_cost)
-            end
-          end)
-        dijkstra_search(cave, new_dist, new_shortest, connected_path_nodes)
+      true ->
+        dijkstra_search(cave, graph, costs, current, checked)
     end
   end
 
-  # Using BFS to find all connected path_nodes and the cost
-  def find_connected_path_nodes(cave = %Cave{}, start) do
-    find_connected_path_nodes(cave, %{}, :queue.from_list([start]))
+  defp dijkstra_search(cave = %Cave{}, graph, costs, current, checked) do
+    costs =
+      graph
+      |> :digraph.out_edges(current)
+      |> Stream.map(&:digraph.edge(graph, &1))
+      |> Enum.reduce(costs, fn {_e, ^current, neighbor, cost}, costs ->
+        new_cost = costs[current] + cost
+
+        if costs[neighbor] > new_cost do
+          Map.put(costs, neighbor, new_cost)
+        else
+          costs
+        end
+      end)
+
+    {next, _} =
+      costs
+      |> Stream.reject(fn {path_node, _} -> MapSet.member?(checked, path_node) end)
+      |> Enum.min_by(fn {_, cost} -> cost end, fn -> {nil, nil} end)
+
+    find_fewest_cost_to_target(cave, graph, costs, next, MapSet.put(checked, current))
   end
-  defp find_connected_path_nodes(%Cave{}, result, _unchecked = {[], []}), do: result
-  defp find_connected_path_nodes(cave = %Cave{}, result, unchecked) do
-    {{:value, path_node = {_coord, tool}}, rest_unchecked} = :queue.out(unchecked)
-    case result[path_node] do
-      nil ->
-        neighbors = valid_choices(cave, path_node)
 
-        neighbors_cost =
-          neighbors
-          |> Stream.map(fn {_, t} = p -> {p, 1 + switch_tool_cost(tool, t)} end)
-          |> Enum.into(%{})
+  def build_graph(cave = %Cave{}) do
+    build_graph(cave, :digraph.new(), MapSet.new(), :queue.from_list([{{0, 0}, :torch}]))
+  end
 
-        result = Map.put(result, path_node, neighbors_cost)
-        unchecked = :queue.join(rest_unchecked, :queue.from_list(neighbors))
+  defp build_graph(%Cave{}, graph, _checked, _unchecked = {[], []}), do: graph
 
-        find_connected_path_nodes(cave, result, unchecked)
-      _ -> find_connected_path_nodes(cave, result, rest_unchecked)
+  defp build_graph(cave = %Cave{}, graph, checked, unchecked) do
+    {{:value, current = {_coord, tool}}, rest_unchecked} = :queue.out(unchecked)
+
+    if MapSet.member?(checked, current) do
+      build_graph(cave, graph, checked, rest_unchecked)
+    else
+      _add_current_vertex = :digraph.add_vertex(graph, current)
+      neighbors = cave |> valid_choices(current)
+
+      _add_edges_to_neighbors =
+        neighbors
+        |> Enum.each(fn neighbor = {_, neighbor_tool} ->
+          _add_neighbor_vertex = :digraph.add_vertex(graph, neighbor)
+          :digraph.add_edge(graph, current, neighbor, 1 + switch_tool_cost(tool, neighbor_tool))
+        end)
+
+      unchecked = :queue.join(rest_unchecked, :queue.from_list(neighbors))
+      build_graph(cave, graph, MapSet.put(checked, current), unchecked)
     end
   end
 
@@ -123,7 +138,6 @@ defmodule Cave do
     |> Stream.reject(fn {{x, y}, tools} -> x > max_x or y > max_y or tools == [] end)
     |> Enum.flat_map(fn {coord, tools} -> Enum.map(tools, &{coord, &1}) end)
   end
-
 
   # TODO need to figure out the smallest max_x and max_y
   defp max_x(%Cave{target: {x, _}}), do: x + 14
