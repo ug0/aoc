@@ -58,44 +58,48 @@ defmodule Cave do
     start = {{0, 0}, :torch}
     graph = build_graph(cave)
 
-    find_fewest_cost_to_target(cave, graph, %{start => 0}, start, MapSet.new())
+    {costs, priority_q} = graph
+    |> :digraph.vertices()
+    |> Stream.reject(& &1 == start)
+    |> Enum.reduce({%{start => 0}, _priority_q = %{start => 0}}, fn v, {costs, priority_q} ->
+      {Map.put(costs, v, :infinity), Map.put(priority_q, v, :infinity)}
+    end)
+
+    find_fewest_cost_to_target(cave, graph, costs, priority_q)
   end
 
-  defp find_fewest_cost_to_target(cave = %Cave{target: target}, graph, costs, current, checked) do
+  defp find_fewest_cost_to_target(cave = %Cave{target: target}, graph, costs, priority_q) do
     cond do
-      current == nil or
-          (MapSet.member?(checked, {target, :torch}) and
-             MapSet.member?(checked, {target, :climbing_gear})) ->
+      !Map.has_key?(priority_q, {target, :torch}) and !Map.has_key?(priority_q, {target, :climbing_gear}) ->
         {candidate1, candidate2} = {{target, :torch}, {target, :climbing_gear}}
         %{^candidate1 => cost1, ^candidate2 => cost2} = costs
         min(cost1, cost2 + switch_tool_cost(:climbing_gear, :torch))
 
       true ->
-        dijkstra_search(cave, graph, costs, current, checked)
+        dijkstra_search(cave, graph, costs, priority_q)
     end
   end
 
-  defp dijkstra_search(cave = %Cave{}, graph, costs, current, checked) do
-    costs =
+  defp dijkstra_search(cave = %Cave{}, graph, costs, priority_q) do
+    {current, _} = Enum.min_by(priority_q, fn {_, cost} -> cost end)
+    priority_q = Map.delete(priority_q, current)
+
+    {costs, priority_q} =
       graph
       |> :digraph.out_edges(current)
       |> Stream.map(&:digraph.edge(graph, &1))
-      |> Enum.reduce(costs, fn {_e, ^current, neighbor, cost}, costs ->
+      |> Stream.filter(fn {_, _, neighbor, _} -> Map.has_key?(priority_q, neighbor) end)
+      |> Enum.reduce({costs, priority_q}, fn {_e, ^current, neighbor, cost}, {costs, priority_q} ->
         new_cost = costs[current] + cost
 
         if costs[neighbor] > new_cost do
-          Map.put(costs, neighbor, new_cost)
+          {Map.put(costs, neighbor, new_cost), %{priority_q | neighbor => new_cost}}
         else
-          costs
+          {costs, priority_q}
         end
       end)
 
-    {next, _} =
-      costs
-      |> Stream.reject(fn {path_node, _} -> MapSet.member?(checked, path_node) end)
-      |> Enum.min_by(fn {_, cost} -> cost end, fn -> {nil, nil} end)
-
-    find_fewest_cost_to_target(cave, graph, costs, next, MapSet.put(checked, current))
+    find_fewest_cost_to_target(cave, graph, costs, priority_q)
   end
 
   def build_graph(cave = %Cave{}) do
