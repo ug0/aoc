@@ -39,16 +39,10 @@ defmodule Ground do
       {{:end_clay, {left, _}}, {:end_clay, {right, _}}} ->
         fill(ground, left..right, y, :water)
         spread(ground, {x, y - 1})
-      {{:end_fall, {left, _}}, {:end_fall, {right, _}}} ->
+      {{end_left, {left, _}}, {end_right, {right, _}}} ->
         fill(ground, left..right, y, :fall)
-        falling(ground, {left, y})
-        falling(ground, {right, y})
-      {{:end_fall, {left, _}}, {_, {right, _}}} ->
-        fill(ground, left..right, y, :fall)
-        falling(ground, {left, y})
-      {{_, {left, _}}, {:end_fall, {right, _}}} ->
-        fill(ground, left..right, y, :fall)
-        falling(ground, {right, y})
+        end_left == :end_fall and falling(ground, {left, y})
+        end_right == :end_fall and falling(ground, {right, y})
     end
   end
   defp spread_left(ground, coord), do: spread_side(ground, coord, &(&1 - 1))
@@ -64,7 +58,7 @@ defmodule Ground do
 
   defp falling_down(ground, coord) do
     if reach_the_bottom?(ground, coord) do
-      :end
+      :done
     else
       fill(ground, coord, :fall)
       falling(ground, coord)
