@@ -2,15 +2,9 @@ defmodule Day13 do
   alias __MODULE__.Firewall
 
   def part1(input) do
-    {_firewall, severity} =
-      input
-      |> parse_firewall()
-      |> go_through_each_layer(0, fn
-        severity, :safe -> {:cont, severity}
-        severity, {:caught, inc} -> {:cont, severity + inc}
-      end)
-
-    severity
+    input
+    |> parse_firewall()
+    |> get_caught_severity()
   end
 
   def part2(input) do
@@ -19,52 +13,35 @@ defmodule Day13 do
     |> find_fewest_waiting_time_to_get_away()
   end
 
-  # takes some time to execute
+  defp get_caught_severity(firewall) do
+    firewall
+    |> Firewall.layer_states_when_packet_arrives()
+    |> Stream.map(fn
+      {depth, {range, 0, _inc}} -> depth * range
+      _ -> 0
+    end)
+    |> Enum.sum()
+  end
+
+  # takes even longer than the first iteration
   defp find_fewest_waiting_time_to_get_away(firewall, delay \\ 0) do
-    if will_get_caught?(firewall) do
+    if will_get_caught?(firewall, delay) do
       firewall
-      |> wait(1)
       |> find_fewest_waiting_time_to_get_away(delay + 1)
     else
       delay
     end
   end
 
-  defp will_get_caught?(firewall) do
-    {_firewall, caught?} =
-      firewall
-      |> go_through_each_layer(false, fn
-        _, :safe -> {:cont, false}
-        _, {:caught, _} -> {:halt, true}
-      end)
-
-    caught?
+  defp will_get_caught?(firewall, delay) do
+    firewall
+    |> Firewall.layer_states_when_packet_arrives(delay)
+    |> Enum.any?(fn {_depth, {_range, pos, _inc}} -> pos == 0 end)
   end
 
   defp parse_firewall(input) do
     Firewall.init(input)
   end
-
-  defp wait(firewall, 0) do
-    firewall
-  end
-
-  defp wait(firewall, picoseconds) do
-    firewall
-    |> Firewall.next()
-    |> wait(picoseconds - 1)
-  end
-
-  defp go_through_each_layer(firewall, state, fun) do
-    0..Firewall.max_depth(firewall)
-    |> Enum.reduce_while({firewall, state}, fn depth, {firewall, state} ->
-      case fun.(state, Firewall.reach_layer(firewall, depth)) do
-        {:cont, new_state} -> {:cont, {Firewall.next(firewall), new_state}}
-        {:halt, result} -> {:halt, {firewall, result}}
-      end
-    end)
-  end
-
 
   defmodule Firewall do
     def init(input) do
@@ -74,31 +51,24 @@ defmodule Day13 do
       |> Enum.into(%{})
     end
 
-    def max_depth(firewall) do
+    def layer_states_when_packet_arrives(firewall, delay \\ 0) do
       firewall
-      |> Map.keys()
-      |> Enum.max()
+      |> Stream.map(fn {depth, scanner} ->
+        {depth, scanner_move(scanner, depth + delay)}
+      end)
     end
 
-    def reach_layer(firewall, depth) do
-      case Map.get(firewall, depth) do
-        {range, 0, _inc} -> {:caught, range * depth}
-        _ -> :safe
-      end
+    defp scanner_move(scanner, 0) do
+      scanner
     end
 
-    def next(firewall) do
-      firewall
-      |> Stream.map(&layer_next_state/1)
-      |> Enum.into(%{})
-    end
-
-    defp layer_next_state({depth, {range, pos, inc}}) do
+    defp scanner_move({range, pos, inc}, steps) when steps > 0 do
       case pos + inc do
-        0 -> {depth, {range, 0, 1}}
-        bottom when bottom == range - 1 -> {depth, {range, bottom, -1}}
-        new_pos -> {depth, {range, new_pos, inc}}
+        0 -> {range, 0, 1}
+        bottom when bottom == range - 1 -> {range, bottom, -1}
+        new_pos -> {range, new_pos, inc}
       end
+      |> scanner_move(steps - 1)
     end
 
     defp parse_layer(layer) do
