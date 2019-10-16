@@ -9,6 +9,29 @@ defmodule Day17 do
   end
 
   def part2(steps) do
+    # part2_slow(steps)
+    part2_fast(steps)
+  end
+
+  # Only track insertions afer zero-index, much faster.
+  def part2_fast(steps) do
+    1..50_000_000
+    |> Enum.reduce({[], 0, 1}, fn value, {track, pos, len} ->
+      case next_pos(pos, steps, len) do
+        0 -> {[value | track], 1, len + 1}
+        pos -> {track, pos + 1, len + 1}
+      end
+    end)
+    |> elem(0)
+    |> hd()
+  end
+
+  defp next_pos(pos, steps, len) do
+    rem(pos + steps, len)
+  end
+
+  # Simuate the process as part1 does, very slow.
+  def part2_slow(steps) do
     50_000_000
     |> run(steps)
     |> move_to_zero()
