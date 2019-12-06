@@ -1,6 +1,7 @@
 defmodule Day5 do
   alias __MODULE__.Program
 
+  def part1(input) do
     input
     |> parse_input()
     |> Program.new(1)
