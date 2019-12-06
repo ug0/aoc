@@ -154,7 +154,7 @@ defmodule Day5 do
       %{program | pointer: addr}
     end
 
-    defp increase_pointer(%_MODULE__{pointer: addr} = program, inc) do
+    defp increase_pointer(%__MODULE__{pointer: addr} = program, inc) do
       %{program | pointer: addr + inc}
     end
 
