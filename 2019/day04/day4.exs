@@ -39,13 +39,9 @@ defmodule Day4 do
   defp has_two_same_adjacents?([_ | rest]), do: has_two_same_adjacents?(rest)
   defp has_two_same_adjacents?(_), do: false
 
-  defp never_decrease?([a, b, c, d, e, f]) when a <= b and b <= c and c <= d and d <= e and e <= f do
-    true
-  end
-
-  defp never_decrease?(_) do
-    false
-  end
+  defp never_decrease?([a | [b | _] = rest]) when a <= b, do: never_decrease?(rest)
+  defp never_decrease?([_]), do: true
+  defp never_decrease?(_), do: false
 
   defp parse_input_range(input) do
     [min, max] =
