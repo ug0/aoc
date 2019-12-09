@@ -1,9 +1,10 @@
 defmodule IntcodeProgram do
   defstruct [:memory, :pointer, :output, :input, :relative_base]
 
-  def new(codes, input, output) do
+  def new(raw_program, input, output) do
     memory =
-      codes
+      raw_program
+      |> parse()
       |> Stream.with_index()
       |> Enum.into(%{}, fn {code, i} -> {i, code} end)
 
@@ -14,6 +15,12 @@ defmodule IntcodeProgram do
       output: output,
       relative_base: 0
     }
+  end
+
+  defp parse(raw_program) do
+    raw_program
+    |> String.splitter(",", trim: true)
+    |> Enum.map(&String.to_integer/1)
   end
 
   def diagnostic_code(%__MODULE__{output: [code | _]}) do

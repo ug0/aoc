@@ -3,9 +3,8 @@ Code.load_file("../intcode_program.exs", __DIR__)
 defmodule Day2 do
   alias IntcodeProgram, as: Program
 
-  def part1(input) do
-    input
-    |> parse_codes()
+  def part1(raw_program) do
+    raw_program
     |> Program.new(nil, nil)
     |> Program.write(1, 12)
     |> Program.write(2, 2)
@@ -13,8 +12,8 @@ defmodule Day2 do
     |> Program.read(0)
   end
 
-  def part2(input) do
-    program = input |> parse_codes() |> Program.new(nil, nil)
+  def part2(raw_program) do
+    program = Program.new(raw_program, nil, nil)
 
     {noun, verb} =
       for(n <- 0..99, v <- 0..99, do: {n, v})
@@ -28,12 +27,6 @@ defmodule Day2 do
       end)
 
     100 * noun + verb
-  end
-
-  defp parse_codes(input) do
-    input
-    |> String.splitter(",", trim: true)
-    |> Enum.map(&String.to_integer/1)
   end
 end
 

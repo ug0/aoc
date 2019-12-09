@@ -3,17 +3,16 @@ Code.load_file("../intcode_program.exs", __DIR__)
 defmodule Day9 do
   alias IntcodeProgram, as: Program
 
-  def part1(input) do
-    run(input, 1)
+  def part1(program) do
+    run(program, 1)
   end
 
-  def part2(input) do
-    run(input, 2)
+  def part2(program) do
+    run(program, 2)
   end
 
   defp run(program, mode) do
     program
-    |> parse_codes()
     |> Program.new(
       spawn_link(fn ->
         receive do
@@ -27,12 +26,6 @@ defmodule Day9 do
     receive do
       {:write_output, value} -> value
     end
-  end
-
-  defp parse_codes(raw_input) do
-    raw_input
-    |> String.splitter(",", trim: true)
-    |> Enum.map(&String.to_integer/1)
   end
 end
 

@@ -3,13 +3,12 @@ Code.load_file("../intcode_program.exs", __DIR__)
 defmodule Day7 do
   alias IntcodeProgram, as: Program
 
-  def part1(input) do
-    codes = parse_codes(input)
+  def part1(program) do
     signal_probe = spawn_link(__MODULE__, :capture_highest_signal, [0, self()])
 
     [0, 1, 2, 3, 4]
     |> all_sequences()
-    |> Stream.map(&build_amp_series(&1, codes, signal_probe))
+    |> Stream.map(&build_amp_series(&1, program, signal_probe))
     |> Enum.each(&try_amp_series/1)
 
     receive do
@@ -19,13 +18,12 @@ defmodule Day7 do
     end
   end
 
-  def part2(input) do
-    codes = parse_codes(input)
+  def part2(program) do
     signal_probe = spawn_link(__MODULE__, :capture_highest_signal, [0, self()])
 
     [5, 6, 7, 8, 9]
     |> all_sequences()
-    |> Stream.map(&build_amp_series(&1, codes, nil))
+    |> Stream.map(&build_amp_series(&1, program, nil))
     |> Stream.map(&connect_last_and_first_amps(&1, signal_probe))
     |> Enum.each(&try_amp_series/1)
 
@@ -136,12 +134,6 @@ defmodule Day7 do
     end
 
     output_fun(hook)
-  end
-
-  defp parse_codes(raw_input) do
-    raw_input
-    |> String.splitter(",", trim: true)
-    |> Enum.map(&String.to_integer/1)
   end
 end
 

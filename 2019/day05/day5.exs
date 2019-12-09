@@ -3,17 +3,15 @@ Code.load_file("../intcode_program.exs", __DIR__)
 defmodule Day5 do
   alias IntcodeProgram, as: Program
 
-  def part1(input) do
-    input
-    |> parse_codes()
+  def part1(raw_program) do
+    raw_program
     |> Program.new(gen_input(1), gen_output())
     |> Program.execute()
     |> diagnostic_code()
   end
 
-  def part2(input) do
-    input
-    |> parse_codes()
+  def part2(raw_program) do
+    raw_program
     |> Program.new(gen_input(5), gen_output())
     |> Program.execute()
     |> diagnostic_code()
@@ -50,12 +48,6 @@ defmodule Day5 do
         send(pid, values)
         output_fun(values)
     end
-  end
-
-  defp parse_codes(input) do
-    input
-    |> String.splitter(",", trim: true)
-    |> Enum.map(&String.to_integer/1)
   end
 end
 
