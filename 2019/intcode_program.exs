@@ -1,5 +1,5 @@
 defmodule IntcodeProgram do
-  defstruct [:memory, :pointer, :output, :input]
+  defstruct [:memory, :pointer, :output, :input, :relative_base]
 
   def new(codes, input, output) do
     memory =
@@ -11,7 +11,8 @@ defmodule IntcodeProgram do
       memory: memory,
       input: input,
       pointer: 0,
-      output: output
+      output: output,
+      relative_base: 0
     }
   end
 
@@ -20,7 +21,7 @@ defmodule IntcodeProgram do
   end
 
   def read(%__MODULE__{memory: mem}, addr) do
-    Map.get(mem, addr)
+    Map.get(mem, addr, 0)
   end
 
   def write(%__MODULE__{memory: mem} = program, addr, value) do
@@ -50,26 +51,37 @@ defmodule IntcodeProgram do
     :halt
   end
 
-  defp parse_instruction(<<"0", m2, m1, "01">>, [param1, param2, param3]) do
+  defp parse_instruction(<<m3, m2, m1, "01">>, [param1, param2, param3]) do
     {:ok,
      fn program ->
        program
-       |> write(param3, parse_param(program, {m1, param1}) + parse_param(program, {m2, param2}))
+       |> write(
+         parse_addr(program, {m3, param3}),
+         parse_param(program, {m1, param1}) + parse_param(program, {m2, param2})
+       )
        |> increase_pointer(4)
      end}
   end
 
-  defp parse_instruction(<<"0", m2, m1, "02">>, [param1, param2, param3]) do
+  defp parse_instruction(<<m3, m2, m1, "02">>, [param1, param2, param3]) do
     {:ok,
      fn program ->
        program
-       |> write(param3, parse_param(program, {m1, param1}) * parse_param(program, {m2, param2}))
+       |> write(
+         parse_addr(program, {m3, param3}),
+         parse_param(program, {m1, param1}) * parse_param(program, {m2, param2})
+       )
        |> increase_pointer(4)
      end}
   end
 
-  defp parse_instruction(<<_, _, "0", "03">>, [param | _]) do
-    {:ok, fn program -> program |> write(param, read_input(program)) |> increase_pointer(2) end}
+  defp parse_instruction(<<_, _, mode, "03">>, [param | _]) do
+    {:ok,
+     fn program ->
+       program
+       |> write(parse_addr(program, {mode, param}), read_input(program))
+       |> increase_pointer(2)
+     end}
   end
 
   defp parse_instruction(<<_, _, m1, "04">>, [param | _]) do
@@ -101,31 +113,40 @@ defmodule IntcodeProgram do
      end}
   end
 
-  defp parse_instruction(<<_, m2, m1, "07">>, [param1, param2, param3]) do
+  defp parse_instruction(<<m3, m2, m1, "07">>, [param1, param2, param3]) do
     {:ok,
      fn program ->
        v1 = parse_param(program, {m1, param1})
        v2 = parse_param(program, {m2, param2})
 
        case v1 < v2 do
-         true -> write(program, param3, 1)
-         false -> write(program, param3, 0)
+         true -> write(program, parse_addr(program, {m3, param3}), 1)
+         false -> write(program, parse_addr(program, {m3, param3}), 0)
        end
        |> increase_pointer(4)
      end}
   end
 
-  defp parse_instruction(<<_, m2, m1, "08">>, [param1, param2, param3]) do
+  defp parse_instruction(<<m3, m2, m1, "08">>, [param1, param2, param3]) do
     {:ok,
      fn program ->
        v1 = parse_param(program, {m1, param1})
        v2 = parse_param(program, {m2, param2})
 
        case v1 == v2 do
-         true -> write(program, param3, 1)
-         false -> write(program, param3, 0)
+         true -> write(program, parse_addr(program, {m3, param3}), 1)
+         false -> write(program, parse_addr(program, {m3, param3}), 0)
        end
        |> increase_pointer(4)
+     end}
+  end
+
+  defp parse_instruction(<<_, _, mode, "09">>, [param | _]) do
+    {:ok,
+     fn program ->
+       program
+       |> increase_relative_base(parse_param(program, {mode, param}))
+       |> increase_pointer(2)
      end}
   end
 
@@ -135,6 +156,10 @@ defmodule IntcodeProgram do
 
   defp increase_pointer(%__MODULE__{pointer: addr} = program, inc) do
     %{program | pointer: addr + inc}
+  end
+
+  defp increase_relative_base(%__MODULE__{relative_base: base} = program, inc) do
+    %{program | relative_base: base + inc}
   end
 
   defp read_input(%__MODULE__{input: input}) do
@@ -150,11 +175,19 @@ defmodule IntcodeProgram do
     program
   end
 
-  defp parse_param(program, {?0, addr}) do
-    read(program, addr)
-  end
-
   defp parse_param(_program, {?1, value}) do
     value
+  end
+
+  defp parse_param(program, param_with_mode) do
+    read(program, parse_addr(program, param_with_mode))
+  end
+
+  defp parse_addr(_program, {?0, addr}) do
+    addr
+  end
+
+  defp parse_addr(%__MODULE__{relative_base: base}, {?2, addr}) do
+    base + addr
   end
 end
