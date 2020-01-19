@@ -4,7 +4,7 @@ defmodule Day20 do
   def part1(str) do
     maze = Maze.from_text(str)
 
-    Maze.shortest_distance(maze, maze.start, maze.end)
+    Maze.shortest_distance(maze, {'AA', :outer}, {'ZZ', :outer})
   end
 
   def part2(str) do
@@ -17,15 +17,11 @@ defmodule Day20 do
       map = parse_map(str)
       portals = parse_portals(map)
       graph = parse_graph(map, portals)
-      {start_coord, _} = portals |> Enum.find(&(elem(&1, 1) == 'AA'))
-      {end_coord, _} = portals |> Enum.find(&(elem(&1, 1) == 'ZZ'))
 
       %__MODULE__{
         map: map,
         portals: portals,
         graph: graph,
-        start: start_coord,
-        end: end_coord
       }
     end
 
@@ -76,7 +72,7 @@ defmodule Day20 do
       case map[coord] do
         ?. ->
           if steps > 0 and portals[coord] do
-            [{coord, steps}]
+            [{portals[coord], steps}]
           else
             coord
             |> adjacents()
@@ -102,58 +98,64 @@ defmodule Day20 do
       |> Enum.into(%{})
     end
 
-    defp parse_portals(map) do
-      Enum.reduce(map, %{}, fn
-        {coord, ?.}, portals ->
-          case portals do
-            %{^coord => _} -> portals
-            _ -> update_portals(portals, map, coord)
-          end
+    def parse_portals(map) do
+      map
+      |> Stream.filter(fn
+        {coord, tile} when tile in ?A..?Z ->
+          coord
+          |> adjacents()
+          |> Enum.any?(&(map[&1] == ?.))
 
-        _, portals ->
-          portals
+        _ ->
+          false
       end)
+      |> Stream.map(fn {coord, tile} ->
+        Enum.sort_by(
+          [
+            {coord, tile}
+            | coord
+              |> adjacents()
+              |> Stream.map(&{&1, map[&1]})
+              |> Enum.filter(fn {_, t} -> t == ?. or t in ?A..?Z end)
+          ],
+          &elem(&1, 0)
+        )
+        |> case do
+          [{coord, ?.}, {coord1, letter1}, {coord2, letter2}] -> {coord, {[letter1, letter2], parse_portal_side(map, coord1, coord2)}}
+          [{coord1, letter1}, {coord2, letter2}, {coord, ?.}] -> {coord, {[letter1, letter2], parse_portal_side(map, coord1, coord2)}}
+        end
+      end)
+      |> Enum.into(%{})
     end
 
-    defp update_portals(portals, map, coord) do
-      case find_portal(map, coord) do
-        nil -> portals
-        label -> Map.put(portals, coord, label)
+    defp parse_portal_side(map, {x, y}, {x, _}) do
+      if Enum.count(map, fn {{_, j}, tile} -> j == y and tile in '.#' end) > 0 do
+        :inner
+      else
+        :outer
       end
     end
 
-    defp find_portal(map, coord) do
-      coord
-      |> adjacents()
-      |> Stream.map(&{&1, Map.get(map, &1)})
-      |> Enum.find(&(elem(&1, 1) in ?A..?Z))
-      |> case do
-        nil ->
-          nil
-
-        {coord1, letter1} ->
-          {coord2, letter2} =
-            coord1
-            |> adjacents()
-            |> Stream.map(&{&1, Map.get(map, &1)})
-            |> Enum.find(&(elem(&1, 1) in ?A..?Z))
-
-          if coord1 < coord2 do
-            [letter1, letter2]
-          else
-            [letter2, letter1]
-          end
+    defp parse_portal_side(map, {x, y}, {_, y}) do
+      if Enum.count(map, fn {{i, _}, tile} -> i == x and tile in '.#' end) > 0 do
+        :inner
+      else
+        :outer
       end
     end
 
     defp parse_graph(map, portals) do
       portals
-      |> Stream.map(fn {coord, label} ->
+      |> Stream.map(fn {coord, {label, side} = portal} ->
+        other_side = case side do
+          :inner -> :outer
+          :outer -> :inner
+        end
         {
-          coord,
-          case Enum.find(portals, fn {c, l} -> c != coord and l == label end) do
+          portal,
+          case portals[{label, other_side}] do
             nil -> find_reachable_portals(map, portals, coord)
-            {c, _} -> [{c, 1} | find_reachable_portals(map, portals, coord)]
+            p -> [{p, 1} | find_reachable_portals(map, portals, coord)]
           end
         }
       end)
@@ -241,6 +243,51 @@ case System.argv() do
       test "part1" do
         assert Day20.part1(@maze1) == 23
         assert Day20.part1(@maze2) == 58
+      end
+
+      @maze3 """
+                   Z L X W       C
+                   Z P Q B       K
+        ###########.#.#.#.#######.###############
+        #...#.......#.#.......#.#.......#.#.#...#
+        ###.#.#.#.#.#.#.#.###.#.#.#######.#.#.###
+        #.#...#.#.#...#.#.#...#...#...#.#.......#
+        #.###.#######.###.###.#.###.###.#.#######
+        #...#.......#.#...#...#.............#...#
+        #.#########.#######.#.#######.#######.###
+        #...#.#    F       R I       Z    #.#.#.#
+        #.###.#    D       E C       H    #.#.#.#
+        #.#...#                           #...#.#
+        #.###.#                           #.###.#
+        #.#....OA                       WB..#.#..ZH
+        #.###.#                           #.#.#.#
+      CJ......#                           #.....#
+        #######                           #######
+        #.#....CK                         #......IC
+        #.###.#                           #.###.#
+        #.....#                           #...#.#
+        ###.###                           #.#.#.#
+      XF....#.#                         RF..#.#.#
+        #####.#                           #######
+        #......CJ                       NM..#...#
+        ###.#.#                           #.###.#
+      RE....#.#                           #......RF
+        ###.###        X   X       L      #.#.#.#
+        #.....#        F   Q       P      #.#.#.#
+        ###.###########.###.#######.#########.###
+        #.....#...#.....#.......#...#.....#.#...#
+        #####.#.###.#######.#######.###.###.#.#.#
+        #.......#.......#.#.#.#.#...#...#...#.#.#
+        #####.###.#####.#.#.#.#.###.###.#.###.###
+        #.......#.....#.#...#...............#...#
+        #############.#.#.###.###################
+                     A O F   N
+                     A A D   M
+      """
+      test "part2" do
+        # assert Day20.part2(@maze1) == 26
+        # assert Day20.part2(@maze2) == :nopath
+        # assert Day20.part2(@maze3) == 396
       end
     end
 
