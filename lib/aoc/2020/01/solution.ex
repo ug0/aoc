@@ -1,4 +1,6 @@
 defmodule Aoc.Y2020.D01 do
+  use Aoc.Input
+
   @sum 2020
   def part1 do
     parsed_input()
@@ -34,12 +36,5 @@ defmodule Aoc.Y2020.D01 do
     input()
     |> String.splitter("\n", trim: true)
     |> Enum.map(&String.to_integer/1)
-  end
-
-  defp input do
-    case System.argv() do
-      [file] -> File.read!(file)
-      _ -> File.read!("#{__DIR__}/input.txt")
-    end
   end
 end
