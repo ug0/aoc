@@ -1,4 +1,4 @@
-defmodule Aoc.Y2020.Day06Test do
+defmodule Aoc.Y2020.Day12Test do
   use ExUnit.Case
 
   @input """
