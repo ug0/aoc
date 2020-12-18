@@ -2,14 +2,14 @@ defmodule Aoc.Y2020.D17 do
   use Aoc.Input
 
   defmodule Cubes do
-    defstruct [:coords, :range]
+    defstruct [:active_set, :range]
 
     @active ?#
     @inactive ?.
 
     def new(coords, dimension \\ 3) do
       coords =
-        Enum.into(coords, %{}, fn {coord, state} ->
+        Enum.map(coords, fn {coord, state} ->
           {expand_coord_dimension(coord, dimension), state}
         end)
 
@@ -19,7 +19,13 @@ defmodule Aoc.Y2020.D17 do
           elem(min, i)..elem(max, i)
         end)
 
-      %__MODULE__{coords: coords, range: range}
+      active_set =
+        coords
+        |> Stream.filter(fn {_, state} -> state == @active end)
+        |> Stream.map(fn {coord, _} -> coord end)
+        |> MapSet.new()
+
+      %__MODULE__{active_set: active_set, range: range}
     end
 
     defp expand_coord_dimension(coord, dimension) do
@@ -29,8 +35,8 @@ defmodule Aoc.Y2020.D17 do
       end
     end
 
-    def active_state_count(%__MODULE__{coords: coords}) do
-      Enum.count(coords, fn {_, state} -> state == @active end)
+    def active_state_count(%__MODULE__{active_set: set}) do
+      MapSet.size(set)
     end
 
     def cycle(%__MODULE__{} = cubes, 0) do
@@ -48,36 +54,45 @@ defmodule Aoc.Y2020.D17 do
       %{cubes | range: Enum.map(range, fn min..max -> (min - n)..(max + n) end)}
     end
 
-    defp change_states(%__MODULE__{range: range} = cubes) do
-      %{cubes | coords: coords_within_range(range, &next_state(cubes, &1))}
+    defp change_states(%__MODULE__{} = cubes) do
+      %{cubes | active_set: next_active_set(cubes)}
     end
 
-    defp coords_within_range([x_range, y_range, z_range], state_fun) do
-      for x <- x_range, y <- y_range, z <- z_range, into: %{} do
-        {{x, y, z}, state_fun.({x, y, z})}
+    defp next_active_set(%__MODULE__{range: [x_range, y_range, z_range]} = cubes) do
+      for x <- x_range, y <- y_range, z <- z_range, reduce: MapSet.new() do
+        acc ->
+          if next_state(cubes, coord = {x, y, z}) == @active do
+            MapSet.put(acc, coord)
+          else
+            acc
+          end
       end
     end
 
-    defp coords_within_range([x_range, y_range, z_range, w_range], state_fun) do
-      for x <- x_range, y <- y_range, z <- z_range, w <- w_range, into: %{} do
-        {{x, y, z, w}, state_fun.({x, y, z, w})}
+    defp next_active_set(%__MODULE__{range: [x_range, y_range, z_range, w_range]} = cubes) do
+      for x <- x_range, y <- y_range, z <- z_range, w <- w_range, reduce: MapSet.new() do
+        acc ->
+          if next_state(cubes, coord = {x, y, z, w}) == @active do
+            MapSet.put(acc, coord)
+          else
+            acc
+          end
       end
     end
 
-    defp next_state(%__MODULE__{coords: coords}, coord) do
-      case {coords[coord], active_neighbors_count(coords, coord)} do
-        {@active, c} when c in 2..3 -> @active
-        {@active, _} -> @inactive
+    defp next_state(%__MODULE__{active_set: set}, coord) do
+      case {MapSet.member?(set, coord), active_neighbors_count(set, coord)} do
+        {true, c} when c in 2..3 -> @active
+        {true, _} -> @inactive
         {_, 3} -> @active
         _ -> @inactive
       end
     end
 
-    defp active_neighbors_count(coords, coord) do
+    defp active_neighbors_count(set, coord) do
       coord
       |> neighbors()
-      |> Stream.map(&coords[&1])
-      |> Enum.count(&(&1 == @active))
+      |> Enum.count(&MapSet.member?(set, &1))
     end
 
     defp neighbors({x, y, z}) do
