@@ -3,10 +3,20 @@ defmodule Aoc.Y2020.D23 do
 
   defmodule Ring do
     def new([first | _] = cups) do
-      (cups ++ [first])
-      |> Stream.chunk_every(2, 1, :discard)
-      |> Enum.reduce(%{}, fn [i, j], acc ->
-        Map.put(acc, i, j)
+      ring = :digraph.new()
+      :digraph.add_vertex(ring, :max, Enum.max(cups))
+
+      cups
+      |> Stream.chunk_every(2, 1)
+      |> Stream.map(fn
+        [last] -> [last, first]
+        pair -> pair
+      end)
+      |> Enum.reduce(ring, fn
+        [i, j], acc ->
+          :digraph.add_vertex(acc, i)
+          :digraph.add_vertex(acc, j)
+          connect(acc, i, j)
       end)
     end
 
@@ -22,16 +32,18 @@ defmodule Aoc.Y2020.D23 do
     end
 
     def next(ring, i) do
-      ring[i]
+      [x] = :digraph.out_neighbours(ring, i)
+      x
     end
 
     def prev(ring, i) do
-      {k, _} = Enum.find(ring, fn {_, v} -> v == i end)
-      k
+      [x] = :digraph.in_neighbours(ring, i)
+      x
     end
 
     def max(ring) do
-      ring |> Stream.map(&elem(&1, 1)) |> Enum.max()
+      {:max, max} = :digraph.vertex(ring, :max)
+      max
     end
 
     def move_partial(ring, partial, dest) do
@@ -42,22 +54,40 @@ defmodule Aoc.Y2020.D23 do
 
     defp insert_partial(ring, i, [first | rest]) do
       ring
-      |> Map.put(Enum.at(rest, -1), next(ring, i))
-      |> Map.put(i, first)
+      |> connect(Enum.at(rest, -1), next(ring, i))
+      |> cut(i)
+      |> connect(i, first)
     end
 
     defp remove_partial(ring, [first | rest]) do
-      Map.put(ring, prev(ring, first), next(ring, Enum.at(rest, -1)))
+      first_prev = prev(ring, first)
+      last = Enum.at(rest, -1)
+      last_next = next(ring, last)
+
+      ring
+      |> cut(first_prev)
+      |> cut(last)
+      |> connect(first_prev, last_next)
+    end
+
+    defp connect(ring, i, j) do
+      :digraph.add_edge(ring, i, j)
+      ring
+    end
+
+    defp cut(ring, i) do
+      [edge] = :digraph.out_edges(ring, i)
+      :digraph.del_edge(ring, edge)
+      ring
     end
   end
 
   alias __MODULE__.Ring
 
   def part1(str \\ nil) do
-    [current | _] =
-      cups = (str || input()) |> String.splitter("", trim: true) |> Enum.map(&String.to_integer/1)
+    cups = (str || input()) |> String.splitter("", trim: true) |> Enum.map(&String.to_integer/1)
 
-    Enum.reduce(1..100, {current, Ring.new(cups)}, fn _, acc ->
+    Enum.reduce(1..100, {hd(cups), Ring.new(cups)}, fn _, acc ->
       move(acc)
     end)
     |> elem(1)
@@ -67,7 +97,23 @@ defmodule Aoc.Y2020.D23 do
     |> IO.inspect()
   end
 
+  @max 1_000_000
+  @times 10_000_000
   def part2(str \\ nil) do
+    # str = "389125467"
+    cups = (str || input()) |> String.splitter("", trim: true) |> Enum.map(&String.to_integer/1)
+    cups = cups ++ Enum.to_list((Enum.max(cups) + 1)..@max)
+
+    {_, ring} =
+      Enum.reduce(1..@times, {hd(cups), Ring.new(cups)}, fn _, acc ->
+        move(acc)
+      end)
+
+    x = Ring.next(ring, 1) |> IO.inspect(label: :x)
+    y = Ring.next(ring, x) |> IO.inspect(label: :y)
+
+    (x * y)
+    |> IO.inspect(label: :product)
   end
 
   defp move({current, ring}) do
