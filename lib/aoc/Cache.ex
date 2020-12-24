@@ -24,5 +24,6 @@ defmodule Aoc.Cache do
 
   def put(cache, key, value) do
     :ets.insert(cache, {key, value})
+    cache
   end
 end

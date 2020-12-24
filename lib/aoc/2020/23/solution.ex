@@ -1,19 +1,23 @@
 defmodule Aoc.Y2020.D23 do
   use Aoc.Input
 
+  alias Aoc.Cache
+
   defmodule Ring do
     def new([first | _] = cups) do
+      ring = Cache.new()
+      Cache.put(ring, :max, 0)
       cups
       |> Stream.chunk_every(2, 1)
       |> Stream.map(fn
         [last] -> [last, first]
         pair -> pair
       end)
-      |> Enum.reduce(%{max: 0}, fn
+      |> Enum.reduce(ring, fn
         [i, j], acc ->
           acc
-          |> Map.put(i, j)
-          |> Map.update!(:max, &max(&1, i))
+          |> Cache.put(i, j)
+          |> Cache.put(:max, max(max(acc), i))
       end)
     end
 
@@ -29,11 +33,11 @@ defmodule Aoc.Y2020.D23 do
     end
 
     def next(ring, i) do
-      ring[i]
+      Cache.get(ring, i)
     end
 
     def max(ring) do
-      ring[:max]
+      Cache.get(ring, :max)
     end
 
     def move_partial(ring, partial, current, dest) do
@@ -44,13 +48,13 @@ defmodule Aoc.Y2020.D23 do
 
     defp insert_partial(ring, dest, [first | rest]) do
       ring
-      |> Map.put(Enum.at(rest, -1), next(ring, dest))
-      |> Map.put(dest, first)
+      |> Cache.put(Enum.at(rest, -1), next(ring, dest))
+      |> Cache.put(dest, first)
     end
 
     defp remove_partial(ring, current, partial) do
       ring
-      |> Map.put(current, next(ring, Enum.at(partial, -1)))
+      |> Cache.put(current, next(ring, Enum.at(partial, -1)))
     end
   end
 

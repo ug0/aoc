@@ -5,8 +5,9 @@ defmodule Aoc.Y2020.Day23Test do
     assert Aoc.Y2020.D23.part1("389125467") == "67384529"
   end
 
-  # FIXME too slow: ~2mins
+  # FIXME slow: 10+ seconds
+  @tag :skip
   test "part2: multpliy two cups that wil end up immediately clockwise of cup 1" do
-    # assert Aoc.Y2020.D23.part2("389125467") == 149245887792
+    assert Aoc.Y2020.D23.part2("389125467") == 149245887792
   end
 end
