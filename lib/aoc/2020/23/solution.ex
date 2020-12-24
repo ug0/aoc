@@ -3,20 +3,17 @@ defmodule Aoc.Y2020.D23 do
 
   defmodule Ring do
     def new([first | _] = cups) do
-      ring = :digraph.new()
-      :digraph.add_vertex(ring, :max, Enum.max(cups))
-
       cups
       |> Stream.chunk_every(2, 1)
       |> Stream.map(fn
         [last] -> [last, first]
         pair -> pair
       end)
-      |> Enum.reduce(ring, fn
+      |> Enum.reduce(%{max: 0}, fn
         [i, j], acc ->
-          :digraph.add_vertex(acc, i)
-          :digraph.add_vertex(acc, j)
-          connect(acc, i, j)
+          acc
+          |> Map.put(i, j)
+          |> Map.update!(:max, &max(&1, i))
       end)
     end
 
@@ -32,53 +29,28 @@ defmodule Aoc.Y2020.D23 do
     end
 
     def next(ring, i) do
-      [x] = :digraph.out_neighbours(ring, i)
-      x
-    end
-
-    def prev(ring, i) do
-      [x] = :digraph.in_neighbours(ring, i)
-      x
+      ring[i]
     end
 
     def max(ring) do
-      {:max, max} = :digraph.vertex(ring, :max)
-      max
+      ring[:max]
     end
 
-    def move_partial(ring, partial, dest) do
+    def move_partial(ring, partial, current, dest) do
       ring
-      |> remove_partial(partial)
+      |> remove_partial(current, partial)
       |> insert_partial(dest, partial)
     end
 
-    defp insert_partial(ring, i, [first | rest]) do
+    defp insert_partial(ring, dest, [first | rest]) do
       ring
-      |> connect(Enum.at(rest, -1), next(ring, i))
-      |> cut(i)
-      |> connect(i, first)
+      |> Map.put(Enum.at(rest, -1), next(ring, dest))
+      |> Map.put(dest, first)
     end
 
-    defp remove_partial(ring, [first | rest]) do
-      first_prev = prev(ring, first)
-      last = Enum.at(rest, -1)
-      last_next = next(ring, last)
-
+    defp remove_partial(ring, current, partial) do
       ring
-      |> cut(first_prev)
-      |> cut(last)
-      |> connect(first_prev, last_next)
-    end
-
-    defp connect(ring, i, j) do
-      :digraph.add_edge(ring, i, j)
-      ring
-    end
-
-    defp cut(ring, i) do
-      [edge] = :digraph.out_edges(ring, i)
-      :digraph.del_edge(ring, edge)
-      ring
+      |> Map.put(current, next(ring, Enum.at(partial, -1)))
     end
   end
 
@@ -118,7 +90,7 @@ defmodule Aoc.Y2020.D23 do
 
   defp move({current, ring}) do
     picked = pick(ring, current, 3)
-    new_ring = Ring.move_partial(ring, picked, find_destination(ring, current - 1, picked))
+    new_ring = Ring.move_partial(ring, picked, current, find_destination(ring, current - 1, picked))
     {Ring.next(new_ring, current), new_ring}
   end
 
