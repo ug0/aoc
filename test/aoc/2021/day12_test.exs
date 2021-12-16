@@ -50,7 +50,7 @@ defmodule Aoc.Y2021.Day12Test do
     assert D12.part1(@input3) == 226
   end
 
-  test "part1: Total paths with new rules" do
+  test "part2: Total paths with new rules" do
     assert D12.part2(@input1) == 36
     assert D12.part2(@input2) == 103
     assert D12.part2(@input3) == 3509
